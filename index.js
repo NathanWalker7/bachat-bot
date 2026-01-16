@@ -4,7 +4,6 @@ const fetch = require('node-fetch');
 const FormData = require('form-data');
 const fs = require('fs').promises;
 const path = require('path');
-const { YTDlp } = require('ytdlp-nodejs');
 const sharp = require('sharp');
 const ffmpegPath = require('ffmpeg-static');
 const { exec: execCb } = require('child_process');
@@ -26,7 +25,9 @@ const OWNER_NUMBER = '98988840390';
 
 // Diretório temporário
 const tempDir = path.join(__dirname, 'temp');
-if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+if (!(await fs.stat(tempDir).catch(() => false))) {
+  await fs.mkdir(tempDir);
+}
 
 // Lista de bloqueados (persistência simples via JSON)
 const BLOCK_FILE = path.join(__dirname, 'blocked.json');
@@ -35,7 +36,7 @@ const blockedUsers = new Set();
   try {
     const data = await fs.readFile(BLOCK_FILE, 'utf8');
     JSON.parse(data).forEach(num => blockedUsers.add(num));
-  } catch (e) {}
+  } catch {}
 })();
 
 async function saveBlocked() {
@@ -59,9 +60,7 @@ app.post('/webhook', async (req, res) => {
     const from = message.from;
 
     // Ignora usuários bloqueados
-    if (blockedUsers.has(from)) {
-      return res.sendStatus(200);
-    }
+    if (blockedUsers.has(from)) return res.sendStatus(200);
 
     // Comandos de texto
     if (message.type === 'text') {
@@ -171,14 +170,13 @@ app.post('/webhook', async (req, res) => {
     }
 
   } catch (err) {
-    console.error(err);
+    console.error('Erro no webhook:', err);
   }
 
   res.sendStatus(200);
 });
 
 // Funções auxiliares
-
 async function sendText(to, text) {
   await fetch(`https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`, {
     method: 'POST',
@@ -262,6 +260,7 @@ async function createAnimatedSticker(inputPath, mode = 'fig', duration = 10) {
     if (stats.size > 500 * 1024) throw new Error('Animated grande demais');
     return { path: outputPath, animated: true };
   } catch (e) {
+    console.error('Animated falhou, fallback para estático:', e);
     return { path: await createSticker(inputPath, mode), animated: false };
   }
 }
@@ -284,7 +283,8 @@ async function handleDownloadVideo(to, url, quality = 'default') {
     if (quality === 'max') format = 'bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/best';
     else if (typeof quality === 'number') format = `bestvideo[height<=${quality}][vcodec^=avc1]+bestaudio[ext=m4a]/best[height<=${quality}]`;
 
-    await new YTDlp().download(url, { format, output: outputPath, mergeOutputFormat: 'mp4' });
+    const ytdlp = new YTDlp();
+    await ytdlp.download(url, { format, output: outputPath, mergeOutputFormat: 'mp4' });
 
     let finalPath = outputPath;
     let sizeMB = (await fs.stat(finalPath)).size / (1024 * 1024);
@@ -307,6 +307,7 @@ async function handleDownloadVideo(to, url, quality = 'default') {
     await fs.unlink(finalPath).catch(() => {});
     if (finalPath !== outputPath) await fs.unlink(outputPath).catch(() => {});
   } catch (err) {
+    console.error('Erro no download:', err);
     await sendText(to, 'Erro ao baixar 😅 Tenta outro link ou qualidade.');
   }
 }
