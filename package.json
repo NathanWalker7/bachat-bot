@@ -1,0 +1,20 @@
+{
+  "name": "BaChat-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "body-parser": "^1.20.3",
+    "node-fetch": "^2.7.0",
+    "form-data": "^4.0.0",
+    "ytdlp-nodejs": "^latest",
+    "sharp": "^0.33.5",
+    "ffmpeg-static": "^5.2.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
